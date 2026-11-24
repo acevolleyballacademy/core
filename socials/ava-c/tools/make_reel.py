@@ -19,6 +19,8 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+import os, shutil
+FFMPEG = os.environ.get("AVACLIPS_FFMPEG") or shutil.which("ffmpeg") or "ffmpeg"
 ASSETS = HERE.parent / "assets"
 OVERLAYS = {
     "highlight": ASSETS / "overlay_highlight.png",
@@ -27,8 +29,27 @@ OVERLAYS = {
     "playerqs": ASSETS / "overlay_player_qs.png",
     "none": None,
 }
-FONT = "/usr/share/fonts/opentype/inter/InterDisplay-Black.otf"
 W, H = 1080, 1920
+
+
+def _font_dir():
+    """Inter Display lives in different places on Linux / the Mac (AVA Stats ships it)."""
+    import os, glob
+    cands = [os.environ.get("AVA_FONT_DIR", ""), "/usr/share/fonts/opentype/inter",
+             str(Path.home() / "Library/Fonts"), "/Library/Fonts"]
+    cands += glob.glob(str(Path.home() / "**/video/app/assets/fonts"), recursive=False)
+    cands += glob.glob(str(Path.home() / "*/video/app/assets/fonts")) + glob.glob(str(Path.home() / "*/*/video/app/assets/fonts"))
+    for c in cands:
+        if c and Path(c, "InterDisplay-Black.otf").exists() or (c and Path(c, "InterDisplay-BlackItalic.otf").exists()):
+            return Path(c)
+    sys.exit("Inter Display font not found. Set AVA_FONT_DIR to a folder with InterDisplay-*.otf")
+
+
+def _font():
+    d = _font_dir()
+    for n in ("InterDisplay-Black.otf", "InterDisplay-BlackItalic.otf"):
+        if (d / n).exists():
+            return str(d / n)
 
 
 def t(s: str) -> float:
@@ -64,7 +85,7 @@ def segment(src, start, end, out, speed, zoom, hook, overlay):
     if hook:
         hook_file = Path(out).with_suffix(".hook.txt")
         hook_file.write_text(hook, encoding="utf-8")
-        vf += (f";[{last}]drawtext=fontfile={FONT}:textfile={hook_file}:fontsize=64:fontcolor=white:"
+        vf += (f";[{last}]drawtext=fontfile={_font()}:textfile={hook_file}:fontsize=64:fontcolor=white:"
                f"borderw=6:bordercolor=black:x=(w-text_w)/2:y=h*0.72[v2]")
         last = "v2"
     if speed != 1.0:
@@ -74,7 +95,7 @@ def segment(src, start, end, out, speed, zoom, hook, overlay):
     else:
         af = "anull"
     vf += f";[{last}]fps=30,format=yuv420p[vout]"
-    run(["ffmpeg", "-y", *inputs, "-filter_complex", vf, "-map", "[vout]", "-map", "0:a?",
+    run([FFMPEG, "-y", *inputs, "-filter_complex", vf, "-map", "[vout]", "-map", "0:a?",
          "-af", af, "-c:v", "libx264", "-preset", "medium", "-crf", "19",
          "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2", str(out)])
 
@@ -105,7 +126,7 @@ def main():
             segment(src, s0, s1, parts[1], 0.4, a.zoom * 1.25, "", ov)
         lst = Path(tmp) / "list.txt"
         lst.write_text("".join(f"file '{p}'\n" for p in parts))
-        run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy",
+        run([FFMPEG, "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy",
              "-movflags", "+faststart", str(out)])
     print(out)
 

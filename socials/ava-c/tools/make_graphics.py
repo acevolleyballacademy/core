@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw, ImageFont
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parent / "assets"
 LOGO = HERE / "ava_logo.png"
-FONT_DIR = Path("/usr/share/fonts/opentype/inter")
+FONT_DIR = None  # resolved on first use
 
 YELLOW = (253, 187, 39)
 BLACK = (14, 14, 14)
@@ -25,9 +25,28 @@ POST = (1080, 1350)
 SQUARE = (1080, 1080)
 
 
+
+def _font_dir():
+    """Inter Display lives in different places on Linux / the Mac (AVA Stats ships it)."""
+    import os, glob
+    cands = [os.environ.get("AVA_FONT_DIR", ""), "/usr/share/fonts/opentype/inter",
+             str(Path.home() / "Library/Fonts"), "/Library/Fonts"]
+    cands += glob.glob(str(Path.home() / "**/video/app/assets/fonts"), recursive=False)
+    cands += glob.glob(str(Path.home() / "*/video/app/assets/fonts")) + glob.glob(str(Path.home() / "*/*/video/app/assets/fonts"))
+    for c in cands:
+        if c and Path(c, "InterDisplay-Black.otf").exists() or (c and Path(c, "InterDisplay-BlackItalic.otf").exists()):
+            return Path(c)
+    sys.exit("Inter Display font not found. Set AVA_FONT_DIR to a folder with InterDisplay-*.otf")
+
+
 def font(size, weight="Black", italic=False):
+    global FONT_DIR
+    FONT_DIR = FONT_DIR or _font_dir()
     name = f"InterDisplay-{weight}{'Italic' if italic else ''}.otf"
-    return ImageFont.truetype(str(FONT_DIR / name), size)
+    for n in (name, f"InterDisplay-{weight}Italic.otf", "InterDisplay-BlackItalic.otf", "InterDisplay-Black.otf"):
+        if (FONT_DIR / n).exists():
+            return ImageFont.truetype(str(FONT_DIR / n), size)
+    raise FileNotFoundError(name)
 
 
 def logo(size):
