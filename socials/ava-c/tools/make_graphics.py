@@ -204,12 +204,31 @@ def overlay(label, fname, yellow_band=True):
     d = ImageDraw.Draw(img)
     band = YELLOW if yellow_band else BLACK
     txt = BLACK if yellow_band else YELLOW
-    d.rectangle([60, 250, W - 60, 400], fill=band + (255,))
-    f = fit(d, label, "Black", W - 200, 96)
-    b = d.textbbox((0, 0), label, font=f)
-    d.text(((W - (b[2] - b[0])) / 2 - b[0], 325 - (b[3] - b[1]) / 2 - b[1]), label, font=f, fill=txt)
+    if label:
+        d.rectangle([60, 250, W - 60, 400], fill=band + (255,))
+        f = fit(d, label, "Black", W - 200, 96)
+        b = d.textbbox((0, 0), label, font=f)
+        d.text(((W - (b[2] - b[0])) / 2 - b[0], 325 - (b[3] - b[1]) / 2 - b[1]), label, font=f, fill=txt)
     L = logo(120)
     img.alpha_composite(L, (W - 200, H - 420))
+    OUT.mkdir(parents=True, exist_ok=True)
+    img.save(OUT / fname)
+    print(OUT / fname)
+
+
+def overlay_landscape(label, fname):
+    """Transparent 16:9 PNG: optional yellow label top-left, small logo bottom-right."""
+    W, H = 1920, 1080
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    if label:
+        f = font(64)
+        b = d.textbbox((0, 0), label, font=f)
+        tw, th = b[2] - b[0], b[3] - b[1]
+        y0 = H - 60 - (th + 50)  # bottom-left: the AVA Clips scoreboard sits at the top
+        d.rectangle([60, y0, 60 + tw + 70, y0 + th + 50], fill=YELLOW + (255,))
+        d.text((95 - b[0], y0 + 25 - b[1]), label, font=f, fill=BLACK)
+    img.alpha_composite(logo(110), (W - 170, H - 170))
     OUT.mkdir(parents=True, exist_ok=True)
     img.save(OUT / fname)
     print(OUT / fname)
@@ -222,8 +241,10 @@ def build_all():
     gameday("Prosek B", "PO / MON 7.12", "19:30", "AWAY", "03_gameday_prosek_b.png")
     result("Orion A", "3:1", "W", "example_result_win.png")
     result("Orion A", "1:3", "L", "example_result_loss.png")
-    overlay("HIGHLIGHT OF THE WEEK", "overlay_highlight.png", True)
-    overlay("LOWLIGHT OF THE WEEK", "overlay_lowlight.png", False)
+    overlay("HIGHLIGHTS", "overlay_highlight.png", True)
+    overlay("", "overlay_lowlight.png", False)  # lowlights: no label, only the funny text
+    overlay_landscape("HIGHLIGHTS", "overlay_highlight_landscape.png")
+    overlay_landscape("", "overlay_lowlight_landscape.png")
     overlay("BENCH CAM", "overlay_benchcam.png", True)
     overlay("PLAYER Qs", "overlay_player_qs.png", True)
 
